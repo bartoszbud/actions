@@ -1,0 +1,58 @@
+---
+name: SAST scan with Semgrep
+
+on:
+  workflow_call:
+    inputs:
+      rules:
+        description: Semgrep rules # can be passed after spaces
+        required: false
+        type: string
+        default: 'p/default'
+      upload-artifact:
+        description: Upload artifact to workflow
+        required: false 
+        type: boolean
+        default: true
+      upload-results-github-security:
+        description: Upload scan results to GitHub Security tab
+        required: false
+        type: boolean
+        default: false
+      release-tag: 
+        description: Git tag
+        required: false
+        type: string
+      upload-release-assets: 
+        description: Upload release assets
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  scan:
+    name: SAST validation
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep:1.38.0
+    permissions:
+      contents: write
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Semgrep
+        # fail on blocking finding, pass on internal semgrep errors
+        run: semgrep ci --suppress-errors --sarif --output="${{ github.event.repository.name }}-sast-results.sarif"
+        env:
+           SEMGREP_RULES: ${{ inputs.rules }} # more at semgrep.dev/explore
+
+      - name: Check if report is empty
+        id: check-report
+        if: |
+          always()
+        run: |
+          if [[ -s "${{ github.event.repository.name }}-sast-results.sarif" ]] ; then
+            echo "report=true" >> $GITHUB_OUTPUT;
+          fi
